@@ -60,8 +60,7 @@ namespace ns3
   namespace igmpx
   {
     const uint32_t IGMP_TIME = 10;
-    const uint32_t IGMP_RENEW = 15;
-    const double IGMP_TIMEOUT = 3 * IGMP_RENEW;
+    const double IGMP_TIMEOUT = 2 * IGMP_TIME;
     const uint32_t IGMP_SNR_THRESHOLD = 1000;
     const double IGMP_SNR_RATIO = 0.70;
 
@@ -122,14 +121,15 @@ namespace ns3
 
     struct IgmpState
     {
-        SourceGroupPair igmpPair; /// SourceGroup pair.
-        std::map<uint32_t, Timer> igmpReport; /// <Interface, Timer > to: clients send the reports
-        Timer igmpLife; /// Client lifetime for this Source-Group Pair (called SGP) entry to some router.
+        SourceGroupPair sourceGroup; /// SourceGroup pair.
+        std::map<uint32_t, Timer> igmpMessage; /// <Interface, Timer > map used by clients send the report messages.
+        std::map<uint32_t, Timer> igmpRemove; /// <Interface, Timer > map used by routers to clean clients.
 
         IgmpState (SourceGroupPair sgp) :
-            igmpPair(sgp), igmpLife(Timer::CANCEL_ON_DESTROY)
+            sourceGroup(sgp)
         {
-          igmpReport.clear();
+          igmpMessage.clear();
+          igmpRemove.clear();
         }
 
         ~IgmpState ()
@@ -140,7 +140,7 @@ namespace ns3
     static inline bool
     operator == (const IgmpState &a, const IgmpState &b)
     {
-      return (a.igmpPair == b.igmpPair);
+      return (a.sourceGroup == b.sourceGroup);
     }
 
     /**
@@ -414,6 +414,17 @@ namespace ns3
          */
         void
         IgmpReportTimerExpire (SourceGroupPair sgp, uint32_t interface);
+
+        /**
+         *
+         * \param sgp Target Source-Group pair.
+         * \param interface Target interface.
+         *
+         * Send an IgmpAccept message for the specific sgp and interface.
+         *
+         */
+        void
+        IgmpAcceptTimerExpire (SourceGroupPair sgp, uint32_t interface);
 
         /**
          *

@@ -110,22 +110,24 @@ namespace ns3
         {
           IgmpState istate (sgp); // Create a new source group element
           m_igmpGroups.insert (std::pair<SourceGroupPair, IgmpState> (sgp, istate));
-          m_igmpGroups.find (sgp)->second.igmpPair.m_renew.SetDelay (Seconds (IGMP_RENEW));
-          m_igmpGroups.find (sgp)->second.igmpPair.m_renew.SetFunction (&IGMPXRoutingProtocol::SendIgmpRegister, this);
-          m_igmpGroups.find (sgp)->second.igmpPair.m_renew.SetArguments (sgp, interface);
-          m_igmpGroups.find (sgp)->second.igmpPair.m_renew.Schedule(m_startTime + TransmissionDelay (IGMP_RENEW * 900, IGMP_RENEW * 1100, Time::MS));
+          m_igmpGroups.find (sgp)->second.sourceGroup.m_renew.SetDelay (Seconds (IGMP_TIME));
+          m_igmpGroups.find (sgp)->second.sourceGroup.m_renew.SetFunction (&IGMPXRoutingProtocol::SendIgmpRegister, this);
+          m_igmpGroups.find (sgp)->second.sourceGroup.m_renew.SetArguments (sgp, interface);
+          m_igmpGroups.find (sgp)->second.sourceGroup.m_renew.Schedule(m_startTime + TransmissionDelay (IGMP_TIME * 900, IGMP_TIME * 1100, Time::MS));
         }
       // check whether the SourceGroup pair is registered on the given interface, otherwise create a new one.
-      if (m_igmpGroups.find (sgp)->second.igmpReport.find (interface) == m_igmpGroups.find (sgp)->second.igmpReport.end ())
+      if (m_igmpGroups.find (sgp)->second.igmpMessage.find (interface) == m_igmpGroups.find (sgp)->second.igmpMessage.end ())
         {
-          m_igmpGroups.find (sgp)->second.igmpReport.insert (std::pair<uint32_t, Timer> (interface, Timer (Timer::CANCEL_ON_DESTROY)));
-          m_igmpGroups.find (sgp)->second.igmpLife.SetFunction (&IGMPXRoutingProtocol::RemoveRouter, this);
-          m_igmpGroups.find (sgp)->second.igmpLife.SetDelay (Seconds (IGMP_RENEW + 1));
-          m_igmpGroups.find (sgp)->second.igmpLife.SetArguments (sgp, interface);
+          m_igmpGroups.find (sgp)->second.igmpMessage.insert (std::pair<uint32_t, Timer> (interface, Timer (Timer::CANCEL_ON_DESTROY)));
+          m_igmpGroups.find (sgp)->second.igmpMessage.find (interface)->second.SetFunction (&IGMPXRoutingProtocol::IgmpReportTimerExpire, this);
+          m_igmpGroups.find(sgp)->second.igmpMessage.find(interface)->second.SetArguments(sgp, interface);
+          m_igmpGroups.find(sgp)->second.igmpMessage.find(interface)->second.SetDelay(Seconds(IGMP_TIME));
+
+          m_igmpGroups.find (sgp)->second.igmpRemove.insert (std::pair<uint32_t, Timer> (interface, Timer (Timer::CANCEL_ON_DESTROY)));
+          m_igmpGroups.find (sgp)->second.igmpRemove.find(interface)->second.SetFunction (&IGMPXRoutingProtocol::RemoveRouter, this);
+          m_igmpGroups.find (sgp)->second.igmpRemove.find(interface)->second.SetDelay (Seconds (IGMP_TIMEOUT));
+          m_igmpGroups.find (sgp)->second.igmpRemove.find(interface)->second.SetArguments (sgp, interface);
         }
-      m_igmpGroups.find (sgp)->second.igmpReport.find (interface)->second.SetFunction (&IGMPXRoutingProtocol::IgmpReportTimerExpire, this);
-      m_igmpGroups.find (sgp)->second.igmpReport.find (interface)->second.SetArguments (sgp, interface);
-      m_igmpGroups.find (sgp)->second.igmpReport.find (interface)->second.SetDelay (Seconds (IGMP_TIME));
       Simulator::Schedule (m_startTime + TransmissionDelay (), &IGMPXRoutingProtocol::IgmpReportTimerExpire, this, sgp,
           interface);
     }
@@ -156,10 +158,10 @@ namespace ns3
       NS_ASSERT (m_role == CLIENT);
       NS_LOG_DEBUG ("UnRegister interface with members for (" << source << "," << group << ") over interface " << interface);
       SourceGroupPair sgp (source, group);
-      if (m_igmpGroups.find (sgp)->second.igmpReport.find (interface) != m_igmpGroups.find (sgp)->second.igmpReport.end ())
+      if (m_igmpGroups.find (sgp)->second.igmpMessage.find (interface) != m_igmpGroups.find (sgp)->second.igmpMessage.end ())
         {
-          m_igmpGroups.find (sgp)->second.igmpReport.find (interface)->second.Cancel (); //cancel timer
-          m_igmpGroups.find (sgp)->second.igmpReport.erase (interface);
+          m_igmpGroups.find (sgp)->second.igmpMessage.find (interface)->second.Cancel (); //cancel timer
+          m_igmpGroups.find (sgp)->second.igmpMessage.erase (interface);
         }
     }
 
@@ -399,13 +401,27 @@ namespace ns3
       NS_LOG_FUNCTION (this << sgp << interface << GetLocalAddress (interface));
       NS_ASSERT (m_role == CLIENT);
       NS_ASSERT (m_igmpGroups.find (sgp) != m_igmpGroups.end ());
-      NS_ASSERT (m_igmpGroups.find (sgp)->second.igmpReport.find(interface) != m_igmpGroups.find (sgp)->second.igmpReport.end ());
-      Ipv4Address destination = m_igmpGroups.find(sgp)->second.igmpPair.nextMulticastAddr;
+      NS_ASSERT (m_igmpGroups.find (sgp)->second.igmpMessage.find(interface) != m_igmpGroups.find (sgp)->second.igmpMessage.end ());
+      Ipv4Address destination = m_igmpGroups.find(sgp)->second.sourceGroup.nextMulticastAddr;
       NS_LOG_INFO ("Node " << GetLocalAddress (interface) << " sends reports router "<< destination);
       if (destination == Ipv4Address::GetAny())
         NS_LOG_INFO ("NOT ASSOCIATED!!");
       SendIgmpReport (sgp, interface);
-      m_igmpGroups.find (sgp)->second.igmpReport.find (interface)->second.Schedule ();
+      m_igmpGroups.find (sgp)->second.igmpMessage.find (interface)->second.Schedule ();
+    }
+    void
+    IGMPXRoutingProtocol::IgmpAcceptTimerExpire (SourceGroupPair sgp, uint32_t interface)
+    {
+      NS_LOG_FUNCTION (this << sgp << interface << GetLocalAddress (interface));
+      NS_ASSERT (m_role == ROUTER);
+      if (m_igmpGroups.find (sgp) != m_igmpGroups.end () &&
+          m_igmpGroups.find (sgp)->second.igmpMessage.find(interface) != m_igmpGroups.find (sgp)->second.igmpMessage.end ())
+        {
+        Ipv4Address destination = Ipv4Address::GetAny();
+        NS_LOG_INFO ("Node " << GetLocalAddress (interface) << " sends accepts to clients "<< destination);
+        SendIgmpAccept (sgp, interface, destination);
+        }
+      m_igmpGroups.find (sgp)->second.igmpMessage.find (interface)->second.Schedule ();
     }
 
     void
@@ -437,7 +453,7 @@ namespace ns3
       igmpReport.m_sourceAddr = sgp.sourceMulticastAddr;
       igmpReport.m_upstreamAddr = destination;
       Time delay = TransmissionDelay();
-      NS_LOG_INFO ("Node " << GetLocalAddress (interface) << " becomes client of " << destination << " (" << m_igmpGroups.find (sgp)->second.igmpPair.snrNext << ") for "<< sgp);
+      NS_LOG_INFO ("Node " << GetLocalAddress (interface) << " becomes client of " << destination << " (" << m_igmpGroups.find (sgp)->second.sourceGroup.snrNext << ") for "<< sgp);
       Simulator::Schedule(TransmissionDelay(), &IGMPXRoutingProtocol::SendPacketIGMPXBroadcast, this, packet, report,
           interface);
 #ifndef IGMPTEST
@@ -450,7 +466,7 @@ namespace ns3
     {
       NS_LOG_FUNCTION (this << sgp << interface);NS_LOG_INFO (sgp << "," << interface << "," << GetLocalAddress (interface));
       NS_ASSERT(m_role == CLIENT);
-      Ipv4Address destination = m_igmpGroups.find(sgp)->second.igmpPair.nextMulticastAddr;
+      Ipv4Address destination = m_igmpGroups.find(sgp)->second.sourceGroup.nextMulticastAddr;
       if (destination != Ipv4Address::GetAny())
         {
           SendIgmpReportNode(sgp, interface, destination);
@@ -461,10 +477,10 @@ namespace ns3
           NS_LOG_DEBUG ("Client " << GetLocalAddress (interface) << " has no associated Router: looking for new candidate");
           NS_ASSERT(destination == Ipv4Address::GetAny());
         }
-      NS_LOG_INFO ("Node "<< GetLocalAddress (interface) <<" Reschedule validity of router " << destination << " at " << m_igmpGroups.find(sgp)->second.igmpPair.m_renew.GetDelay().GetSeconds());
-      if (m_igmpGroups.find(sgp)->second.igmpPair.m_renew.IsRunning())
-        m_igmpGroups.find(sgp)->second.igmpPair.m_renew.Cancel();
-      m_igmpGroups.find(sgp)->second.igmpPair.m_renew.Schedule ();
+      NS_LOG_INFO ("Node "<< GetLocalAddress (interface) <<" Reschedule validity of router " << destination << " at " << m_igmpGroups.find(sgp)->second.sourceGroup.m_renew.GetDelay().GetSeconds());
+      if (m_igmpGroups.find(sgp)->second.sourceGroup.m_renew.IsRunning())
+        m_igmpGroups.find(sgp)->second.sourceGroup.m_renew.Cancel();
+      m_igmpGroups.find(sgp)->second.sourceGroup.m_renew.Schedule ();
     }
 
     void
@@ -490,28 +506,34 @@ namespace ns3
             NS_LOG_INFO ("SGP=" << sgp << " Interface " << interface);
             if (report.m_upstreamAddr == Ipv4Address::GetAny ())
               { // The client is looking for a ROUTER to register
-                SendIgmpAccept (sgp, interface, sender);
+                SendIgmpAccept (sgp, interface, Ipv4Address::GetAny ());
               }
             else if (IsMyOwnAddress (report.m_upstreamAddr))
               { // The client provides the ROUTER address to register
                 if (m_igmpGroups.find (sgp) == m_igmpGroups.end ())
-                  { //add group
+                  { //add a source-group pair
                     m_igmpGroups.insert (std::pair<SourceGroupPair, IgmpState> (sgp, IgmpState (sgp)));
                     NS_LOG_INFO ("Adding Source-Group (" << source << "," << group << ") to the map for " << sender << ".");
                   }
-                if (m_igmpGroups.find (sgp)->second.igmpReport.find (interface)
-                    == m_igmpGroups.find (sgp)->second.igmpReport.end ())
+                if (m_igmpGroups.find (sgp)->second.igmpRemove.find (interface)
+                    == m_igmpGroups.find (sgp)->second.igmpRemove.end ())
                   {
                     /*
                      * The router didn't have any client on the interface.
                      * Now, there is a client, thus the corresponding interface is added.
                      * Note that the routers use the Timer to clean the clients list.
                      */
-                    m_igmpGroups.find (sgp)->second.igmpReport.insert (std::pair<uint32_t, Timer> (interface, Timer (Timer::CANCEL_ON_DESTROY)));
-                    m_igmpGroups.find (sgp)->second.igmpReport.find (interface)->second.SetFunction (&IGMPXRoutingProtocol::RemoveClients, this);
-                    m_igmpGroups.find (sgp)->second.igmpReport.find (interface)->second.SetArguments (sgp, interface);
-                    m_igmpGroups.find (sgp)->second.igmpReport.find (interface)->second.SetDelay (Seconds (IGMP_TIMEOUT));
+                    m_igmpGroups.find (sgp)->second.igmpRemove.insert (std::pair<uint32_t, Timer> (interface, Timer (Timer::CANCEL_ON_DESTROY)));
+                    m_igmpGroups.find (sgp)->second.igmpRemove.find (interface)->second.SetFunction (&IGMPXRoutingProtocol::RemoveClients, this);
+                    m_igmpGroups.find (sgp)->second.igmpRemove.find (interface)->second.SetDelay (Seconds (IGMP_TIMEOUT));
+                    m_igmpGroups.find (sgp)->second.igmpRemove.find (interface)->second.SetArguments (sgp, interface);
                     NS_LOG_INFO ("Adding Interface " << interface << " to the map and set clean timer ");
+
+                    m_igmpGroups.find (sgp)->second.igmpMessage.insert (std::pair<uint32_t, Timer> (interface, Timer (Timer::CANCEL_ON_DESTROY)));
+                    m_igmpGroups.find (sgp)->second.igmpMessage.find (interface)->second.SetFunction (&IGMPXRoutingProtocol::IgmpAcceptTimerExpire, this);
+                    m_igmpGroups.find (sgp)->second.igmpMessage.find (interface)->second.SetArguments (sgp, interface);
+                    m_igmpGroups.find (sgp)->second.igmpMessage.find (interface)->second.SetDelay (Seconds (IGMP_TIME));
+
                     #ifndef IGMPTEST // TEST FILES SHOULD NOT RUN THIS COMMAND
                     //TODO: improve the registration.
                     pimdm->registerMember (source, group, interface);
@@ -519,14 +541,13 @@ namespace ns3
                   }
                 NS_LOG_INFO ("Receiving report from " << sender <<" ("<<snr<< "): Router "<<GetLocalAddress (interface) << " has " << sender << " as member for " << sgp);
                 //Note that the routers use the Timer to clean the clients list.
-                if (m_igmpGroups.find (sgp)->second.igmpReport.find (interface)->second.IsRunning ())
-                  m_igmpGroups.find (sgp)->second.igmpReport.find (interface)->second.Cancel ();
-                m_igmpGroups.find (sgp)->second.igmpReport.find (interface)->second.Schedule ();
-                SendIgmpAccept (sgp, interface, sender);
+                if (m_igmpGroups.find (sgp)->second.igmpRemove.find (interface)->second.IsRunning ())
+                  m_igmpGroups.find (sgp)->second.igmpRemove.find (interface)->second.Cancel ();
+                m_igmpGroups.find (sgp)->second.igmpRemove.find (interface)->second.Schedule ();
               }
             else
               {
-                NS_LOG_INFO ("Message for another router " << report.m_upstreamAddr);
+                NS_LOG_INFO ("Message for another router " << next);
               }
             break;
           }
@@ -573,34 +594,34 @@ namespace ns3
             NS_LOG_INFO ("Node " << sender << " accepts " << receiver << " for " << sgp);
             if (m_igmpGroups.find (sgp) == m_igmpGroups.end ())
               {
-                NS_LOG_DEBUG ("Client " << receiver << " receives accept: SKIP because is not interested in "<<sgp);
+                NS_LOG_ERROR ("Client " << receiver << " receives accept: SKIP because is not interested in "<<sgp);
                 return;//not interested in the group
               }
-            Ipv4Address router = m_igmpGroups.find (sgp)->second.igmpPair.nextMulticastAddr;
-            double rsnr = m_igmpGroups.find (sgp)->second.igmpPair.snrNext;
+            Ipv4Address router = m_igmpGroups.find (sgp)->second.sourceGroup.nextMulticastAddr;
+            double rsnr = m_igmpGroups.find (sgp)->second.sourceGroup.snrNext;
             if (sender == router)
               {
                 /*
                  * Receive an accept from the associated router.
                  * The client updates the SNR, if lower than threshold, restart the association process.
                  */
-                if (m_igmpGroups.find (sgp)->second.igmpLife.IsRunning ()) //cancel old timer
-                  m_igmpGroups.find (sgp)->second.igmpLife.Cancel ();
-                m_igmpGroups.find (sgp)->second.igmpLife.Schedule ();
+                if (m_igmpGroups.find (sgp)->second.igmpRemove.find(interface)->second.IsRunning ()) //cancel old timer
+                  m_igmpGroups.find (sgp)->second.igmpRemove.find(interface)->second.Cancel ();
+                m_igmpGroups.find (sgp)->second.igmpRemove.find(interface)->second.Schedule ();
                 NS_LOG_DEBUG ("Client " << receiver << " receives accept: UPDATE " << router << " (" << rsnr << ") to " << router << " (" << snr << ")");
-                m_igmpGroups.find (sgp)->second.igmpPair.snrNext = snr;
+                m_igmpGroups.find (sgp)->second.sourceGroup.snrNext = snr;
                 if (snr < IGMP_SNR_THRESHOLD) // if SNR lower threshold, restart report-accept-register process looking for new candidates
                   {
-                    if (m_igmpGroups.find (sgp)->second.igmpReport.find (interface)->second.IsRunning ())
-                      m_igmpGroups.find (sgp)->second.igmpReport.find (interface)->second.Cancel ();
-                    m_igmpGroups.find (sgp)->second.igmpReport.find (interface)->second.Schedule (Seconds(0));
+                    if (m_igmpGroups.find (sgp)->second.igmpMessage.find (interface)->second.IsRunning ())
+                      m_igmpGroups.find (sgp)->second.igmpMessage.find (interface)->second.Cancel ();
+                    m_igmpGroups.find (sgp)->second.igmpMessage.find (interface)->second.Schedule (Seconds(0));
                     NS_LOG_DEBUG ("Client " << receiver << " receives accept: SNR too low, looking for a new candidate");
                   }
-                Time renew = TransmissionDelay(IGMP_RENEW * 900, IGMP_RENEW * 1100, Time::MS); //Multiple to millisecond
+                Time renew = TransmissionDelay(IGMP_TIME * 900, IGMP_TIME * 1100, Time::MS); //Multiple to millisecond
                 // Reschedule when the node will send a new register to this router
-                if (m_igmpGroups.find(sgp)->second.igmpPair.m_renew.IsRunning())
-                  m_igmpGroups.find(sgp)->second.igmpPair.m_renew.Cancel();
-                m_igmpGroups.find(sgp)->second.igmpPair.m_renew.Schedule(renew);
+                if (m_igmpGroups.find(sgp)->second.sourceGroup.m_renew.IsRunning())
+                  m_igmpGroups.find(sgp)->second.sourceGroup.m_renew.Cancel();
+                m_igmpGroups.find(sgp)->second.sourceGroup.m_renew.Schedule(renew);
                 NS_LOG_INFO ("Node " << receiver << " reg. to "<<router<<": SAME ROUTER -> Renew in "<<renew.GetSeconds ()<<"ms");
               }
             else if ( (rsnr / snr) < IGMP_SNR_RATIO)
@@ -611,8 +632,8 @@ namespace ns3
                  * change the associated router to the new one,
                  * sending an association message.
                  */
-                m_igmpGroups.find(sgp)->second.igmpPair.nextMulticastAddr = sender; // set this candidate
-                m_igmpGroups.find(sgp)->second.igmpPair.snrNext = snr; // set candidate's SNR
+                m_igmpGroups.find(sgp)->second.sourceGroup.nextMulticastAddr = sender; // set this candidate
+                m_igmpGroups.find(sgp)->second.sourceGroup.snrNext = snr; // set candidate's SNR
                 NS_LOG_DEBUG ("Client " << receiver << " receives accept: CHANGE router from " << router
                     << " (" << rsnr << ") -> to " << sender << " (" << snr << ")");
                 if (!m_regMsg.IsRunning())
@@ -645,9 +666,9 @@ namespace ns3
       NS_LOG_FUNCTION (this << sgp << interface);
       NS_ASSERT(m_role == CLIENT);
       NS_ASSERT(interface >0 && interface<m_ipv4->GetNInterfaces ());
-      NS_LOG_INFO ("Remove router " << m_igmpGroups.find (sgp)->second.igmpPair.nextMulticastAddr << " for " << sgp);
-      m_igmpGroups.find(sgp)->second.igmpPair.nextMulticastAddr = Ipv4Address::GetAny();
-      m_igmpGroups.find(sgp)->second.igmpPair.snrNext = 0;
+      NS_LOG_INFO ("Remove router " << m_igmpGroups.find (sgp)->second.sourceGroup.nextMulticastAddr << " for " << sgp);
+      m_igmpGroups.find(sgp)->second.sourceGroup.nextMulticastAddr = Ipv4Address::GetAny();
+      m_igmpGroups.find(sgp)->second.sourceGroup.snrNext = 0;
       Simulator::ScheduleNow(&IGMPXRoutingProtocol::SendIgmpReport, this, sgp, interface);
     }
 
@@ -657,13 +678,13 @@ namespace ns3
       NS_LOG_FUNCTION (this << sgp << interface);
       NS_ASSERT (m_role == ROUTER);
       NS_ASSERT (m_igmpGroups.find (sgp) != m_igmpGroups.end ());
-      NS_ASSERT (m_igmpGroups.find (sgp)->second.igmpReport.find (interface) != m_igmpGroups.find (sgp)->second.igmpReport.end ());
-      int size = m_igmpGroups.find (sgp)->second.igmpReport.size ();
-      m_igmpGroups.find (sgp)->second.igmpReport.find (interface)->second.Cancel ();
-      m_igmpGroups.find (sgp)->second.igmpReport.erase (interface);
-      int size2 = m_igmpGroups.find (sgp)->second.igmpReport.size ();
+      NS_ASSERT (m_igmpGroups.find (sgp)->second.igmpMessage.find (interface) != m_igmpGroups.find (sgp)->second.igmpMessage.end ());
+      int size = m_igmpGroups.find (sgp)->second.igmpMessage.size ();
+      m_igmpGroups.find (sgp)->second.igmpMessage.find (interface)->second.Cancel ();
+      m_igmpGroups.find (sgp)->second.igmpMessage.erase (interface);
+      int size2 = m_igmpGroups.find (sgp)->second.igmpMessage.size ();
       NS_LOG_INFO ("Node " << GetLocalAddress (interface) << " removes interface " << interface << " from " << size << " to " << size2);
-      if (m_igmpGroups.find (sgp)->second.igmpReport.empty ())
+      if (m_igmpGroups.find (sgp)->second.igmpMessage.empty ())
         {
           m_igmpGroups.erase (sgp);
           NS_LOG_INFO ("Erase group " << sgp << " (" << size2 << ")" );
