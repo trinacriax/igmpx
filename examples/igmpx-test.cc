@@ -89,7 +89,7 @@ GenericPacketTrace (std::string context, Ptr<const Packet> p)
 {
   struct mycontext mc = GetContextInfo(context);
   uint64_t tslot = Simulator::Now().GetSeconds();
-//  NS_LOG_INFO("Node " << mc.id << " had " << mc.callback << " PacketID=" << p->GetUid() << " PacketSize=" << p->GetSize()<< " Slot "<<tslot);
+  NS_LOG_INFO("Node " << mc.id << " had " << mc.callback << " PacketID=" << p->GetUid() << " PacketSize=" << p->GetSize()<< " Slot "<<tslot);
   if (mc.callback.compare("IgmpxTxControl") == 0)
     {
       while (txSlot < tslot)
