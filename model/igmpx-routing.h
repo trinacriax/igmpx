@@ -415,17 +415,6 @@ namespace ns3
         void
         IgmpReportTimerExpire (SourceGroupPair sgp, uint32_t interface);
 
-//        /**
-//         *
-//         * \param sgp Target Source-Group pair.
-//         * \param interface Target interface.
-//         *
-//         * Send an IgmpAccept message for the specific sgp and interface.
-//         *
-//         */
-//        void
-//        IgmpAcceptTimerExpire (SourceGroupPair sgp, uint32_t interface);
-
         /**
          *
          * \param sgp Target Source-Group pair.
@@ -526,6 +515,6 @@ namespace ns3
         TransmissionDelay ();
 
     };
-  }
-}	// namespace  ns3
+  } // namespace  igmpx
+} // namespace  ns3
 #endif
