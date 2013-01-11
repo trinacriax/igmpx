@@ -183,7 +183,7 @@ namespace ns3
      *
      */
 
-    class IGMPXRoutingProtocol : public Ipv4RoutingProtocol
+    class RoutingProtocol : public Ipv4RoutingProtocol
     {
       private:
         int32_t m_mainInterface; ///< Node main interface. Right now it runs on all interfaces
@@ -213,9 +213,9 @@ namespace ns3
         static TypeId
         GetTypeId (void);
 
-        IGMPXRoutingProtocol ();
+        RoutingProtocol ();
 
-        virtual ~IGMPXRoutingProtocol ();
+        virtual ~RoutingProtocol ();
 
         /**
          * \returns Main IGMP interface.

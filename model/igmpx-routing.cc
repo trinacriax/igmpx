@@ -22,30 +22,31 @@
  */
 
 #include "igmpx-routing.h"
-#include <ns3/socket-factory.h>
-#include <ns3/ipv4-raw-socket-factory.h>
-#include <ns3/udp-socket-factory.h>
-#include <ns3/udp-socket.h>
+
 #include <ns3/simulator.h>
 #include <ns3/names.h>
-#include <ns3/random-variable.h>
-#include <ns3/inet-socket-address.h>
-#include <ns3/ipv4-routing-protocol.h>
-#include <ns3/ipv4-routing-table-entry.h>
-#include <ns3/ipv4-route.h>
 #include <ns3/boolean.h>
-#include <ns3/uinteger.h>
+#include <ns3/double.h>
 #include <ns3/enum.h>
-#include <ns3/node.h>
 #include <ns3/trace-source-accessor.h>
-#include <ns3/ipv4-header.h>
 #include <ns3/log.h>
+#include <ns3/tag.h>
+#include <ns3/snr-tag.h>
+
+#include "ns3/output-stream-wrapper.h"
+#include <ns3/socket-factory.h>
+#include <ns3/inet-socket-address.h>
+#include <ns3/ipv4-header.h>
+#include "ns3/ipv4-interface.h"
+#include <ns3/ipv4-raw-socket-factory.h>
+#include <ns3/ipv4-route.h>
 #include <ns3/ipv4-routing-table-entry.h>
+#include <ns3/udp-socket-factory.h>
+#include <ns3/udp-socket.h>
 #include <ns3/udp-header.h>
 #include <ns3/udp-l4-protocol.h>
-#include <ns3/tag.h>
-#include <ns3/double.h>
-#include <ns3/snr-tag.h>
+
+
 #include <iostream>
 #include <limits.h>
 
@@ -53,11 +54,11 @@ namespace ns3
 {
   namespace igmpx
   {
-    NS_LOG_COMPONENT_DEFINE ("IGMPXRoutingProtocol");
+    NS_LOG_COMPONENT_DEFINE ("RoutingProtocol");
 
-    NS_OBJECT_ENSURE_REGISTERED (IGMPXRoutingProtocol);
+    NS_OBJECT_ENSURE_REGISTERED (RoutingProtocol);
 
-    IGMPXRoutingProtocol::IGMPXRoutingProtocol () :
+    RoutingProtocol::RoutingProtocol () :
         m_mainInterface (0), m_mainAddress (Ipv4Address::GetAny ()),
         m_stopTx (false), m_ipv4 (0), m_identification (0),
         m_routingProtocol (0), m_RoutingTable (0),
@@ -69,41 +70,41 @@ namespace ns3
       m_igmpGroups.clear ();
     }
 
-    IGMPXRoutingProtocol::~IGMPXRoutingProtocol ()
+    RoutingProtocol::~RoutingProtocol ()
     {
     }
 
     TypeId
-    IGMPXRoutingProtocol::GetTypeId (void)
+    RoutingProtocol::GetTypeId (void)
     {
-      static TypeId tid = TypeId ("ns3::igmpx::IGMPXRoutingProtocol").
-          SetParent<Ipv4RoutingProtocol> ().AddConstructor<IGMPXRoutingProtocol> ()
+      static TypeId tid = TypeId ("ns3::igmpx::RoutingProtocol").
+          SetParent<Ipv4RoutingProtocol> ().AddConstructor<RoutingProtocol> ()
             .AddAttribute ("RegisterAsMember", "Register the node as a member of the group. Tuple (group, source, interface).",
-                           StringValue ("0,0,0"), MakeStringAccessor (&IGMPXRoutingProtocol::RegisterInterfaceString),
+                           StringValue ("0,0,0"), MakeStringAccessor (&RoutingProtocol::RegisterInterfaceString),
                            MakeStringChecker ())
             .AddAttribute ("UnRegisterAsMember", "UnRegister the node from the group. Tuple (group, source, interface).",
-                           StringValue ("0,0,0"), MakeStringAccessor (&IGMPXRoutingProtocol::UnregisterInterfaceString), MakeStringChecker ())
-            .AddAttribute ("PeerRole", "Peer role.", EnumValue (CLIENT), MakeEnumAccessor (&IGMPXRoutingProtocol::m_role),
+                           StringValue ("0,0,0"), MakeStringAccessor (&RoutingProtocol::UnregisterInterfaceString), MakeStringChecker ())
+            .AddAttribute ("PeerRole", "Peer role.", EnumValue (CLIENT), MakeEnumAccessor (&RoutingProtocol::m_role),
                            MakeEnumChecker (CLIENT, "Node is a client.", ROUTER, "Node is a router."))
             .AddTraceSource ("IgmpxRxControl", "Trace Igmpx packet received.",
-                           MakeTraceSourceAccessor (&IGMPXRoutingProtocol::m_rxControlPacketTrace))
+                           MakeTraceSourceAccessor (&RoutingProtocol::m_rxControlPacketTrace))
             .AddTraceSource ("IgmpxTxControl", "Trace Igmpx packet sent.",
-                           MakeTraceSourceAccessor (&IGMPXRoutingProtocol::m_txControlPacketTrace));
+                           MakeTraceSourceAccessor (&RoutingProtocol::m_txControlPacketTrace));
       return tid;
     }
 
     int32_t
-    IGMPXRoutingProtocol::GetMainInterface ()
+    RoutingProtocol::GetMainInterface ()
     {
       return m_mainInterface;
     }
 
     void
-    IGMPXRoutingProtocol::SetInterfaceExclusions (std::set<uint32_t> exceptions)
+    RoutingProtocol::SetInterfaceExclusions (std::set<uint32_t> exceptions)
     {}
 
     void
-    IGMPXRoutingProtocol::RegisterInterface (Ipv4Address source, Ipv4Address group, uint32_t interface)
+    RoutingProtocol::RegisterInterface (Ipv4Address source, Ipv4Address group, uint32_t interface)
     {
       NS_ASSERT (m_role == CLIENT);
       m_startTime = TransmissionDelay (0, IGMP_TIME*1000, Time::MS);
@@ -118,13 +119,13 @@ namespace ns3
       if (m_igmpGroups.find (sgp)->second.igmpMessage.find (interface) == m_igmpGroups.find (sgp)->second.igmpMessage.end ())
         {
           m_igmpGroups.find (sgp)->second.igmpMessage.insert (std::pair<uint32_t, Timer> (interface, Timer (Timer::CANCEL_ON_DESTROY)));
-          m_igmpGroups.find (sgp)->second.igmpMessage.find (interface)->second.SetFunction (&IGMPXRoutingProtocol::IgmpReportTimerExpire, this);
+          m_igmpGroups.find (sgp)->second.igmpMessage.find (interface)->second.SetFunction (&RoutingProtocol::IgmpReportTimerExpire, this);
           m_igmpGroups.find (sgp)->second.igmpMessage.find(interface)->second.SetArguments (sgp, interface);
           m_igmpGroups.find (sgp)->second.igmpMessage.find(interface)->second.SetDelay (Seconds(IGMP_TIME));
           m_igmpGroups.find (sgp)->second.igmpMessage.find(interface)->second.Schedule (m_startTime);
 
           m_igmpGroups.find (sgp)->second.igmpRemove.insert (std::pair<uint32_t, Timer> (interface, Timer (Timer::CANCEL_ON_DESTROY)));
-          m_igmpGroups.find (sgp)->second.igmpRemove.find(interface)->second.SetFunction (&IGMPXRoutingProtocol::RemoveRouter, this);
+          m_igmpGroups.find (sgp)->second.igmpRemove.find(interface)->second.SetFunction (&RoutingProtocol::RemoveRouter, this);
           m_igmpGroups.find (sgp)->second.igmpRemove.find(interface)->second.SetDelay (Seconds (IGMP_TIMEOUT));
           m_igmpGroups.find (sgp)->second.igmpRemove.find(interface)->second.SetArguments (sgp, interface);
 
@@ -133,7 +134,7 @@ namespace ns3
     }
 
     void
-    IGMPXRoutingProtocol::RegisterInterfaceString (std::string csv)
+    RoutingProtocol::RegisterInterfaceString (std::string csv)
     {
       NS_LOG_FUNCTION (this);
       Ipv4Address group (Ipv4Address::GetAny ());
@@ -153,7 +154,7 @@ namespace ns3
     }
 
     void
-    IGMPXRoutingProtocol::UnregisterInterface (Ipv4Address source, Ipv4Address group, uint32_t interface)
+    RoutingProtocol::UnregisterInterface (Ipv4Address source, Ipv4Address group, uint32_t interface)
     {
       NS_ASSERT (m_role == CLIENT);
       NS_LOG_DEBUG ("UnRegister interface with members for (" << source << "," << group << ") over interface " << interface);
@@ -166,7 +167,7 @@ namespace ns3
     }
 
     void
-    IGMPXRoutingProtocol::UnregisterInterfaceString (std::string csv)
+    RoutingProtocol::UnregisterInterfaceString (std::string csv)
     {
       NS_LOG_FUNCTION (this);
       Ipv4Address group, source;
@@ -185,7 +186,7 @@ namespace ns3
     }
 
     Ptr<Ipv4Route>
-    IGMPXRoutingProtocol::RouteOutput (Ptr<Packet> p, const Ipv4Header &header, Ptr<NetDevice> oif,
+    RoutingProtocol::RouteOutput (Ptr<Packet> p, const Ipv4Header &header, Ptr<NetDevice> oif,
                                        Socket::SocketErrno &sockerr)
     {
       NS_LOG_FUNCTION (this << m_ipv4->GetObject<Node> ()->GetId () << header.GetDestination () << oif);
@@ -195,7 +196,7 @@ namespace ns3
     }
 
     bool
-    IGMPXRoutingProtocol::RouteInput (Ptr<const Packet> p, const Ipv4Header &header, Ptr<const NetDevice> idev,
+    RoutingProtocol::RouteInput (Ptr<const Packet> p, const Ipv4Header &header, Ptr<const NetDevice> idev,
                                       UnicastForwardCallback ucb, MulticastForwardCallback mcb,
                                       LocalDeliverCallback lcb, ErrorCallback ecb)
     {
@@ -203,7 +204,7 @@ namespace ns3
     }
 
     bool
-    IGMPXRoutingProtocol::IsMyOwnAddress (const Ipv4Address & address) const
+    RoutingProtocol::IsMyOwnAddress (const Ipv4Address & address) const
     {
       for (std::map<Ptr<Socket>, Ipv4InterfaceAddress>::const_iterator j = m_socketAddresses.begin ();
           j != m_socketAddresses.end (); ++j)
@@ -218,7 +219,7 @@ namespace ns3
     }
 
     void
-    IGMPXRoutingProtocol::NotifyInterfaceUp (uint32_t i)
+    RoutingProtocol::NotifyInterfaceUp (uint32_t i)
     {
       NS_LOG_FUNCTION (this << i);
       if (m_mainAddress == Ipv4Address ())
@@ -233,13 +234,13 @@ namespace ns3
     }
 
     void
-    IGMPXRoutingProtocol::NotifyInterfaceDown (uint32_t i)
+    RoutingProtocol::NotifyInterfaceDown (uint32_t i)
     {
       NS_LOG_FUNCTION (this << i);
     }
 
     void
-    IGMPXRoutingProtocol::NotifyAddAddress (uint32_t j, Ipv4InterfaceAddress address)
+    RoutingProtocol::NotifyAddAddress (uint32_t j, Ipv4InterfaceAddress address)
     {
       NS_LOG_FUNCTION (this << GetObject<Node> ()->GetId ());
       int32_t i = (int32_t) j;
@@ -252,7 +253,7 @@ namespace ns3
       socket->SetAttribute ("IpHeaderInclude", BooleanValue (true));
       socket->SetAllowBroadcast (true);
       InetSocketAddress inetAddr (IGMPX_PORT_NUM);
-      socket->SetRecvCallback (MakeCallback (&IGMPXRoutingProtocol::RecvIGMPX, this));
+      socket->SetRecvCallback (MakeCallback (&RoutingProtocol::RecvIGMPX, this));
       if (socket->Bind (inetAddr))
         {
           NS_FATAL_ERROR ("Failed to bind () IGMPX socket " << addr << ":" << IGMPX_PORT_NUM);
@@ -266,13 +267,13 @@ namespace ns3
     }
 
     void
-    IGMPXRoutingProtocol::NotifyRemoveAddress (uint32_t interface, Ipv4InterfaceAddress address)
+    RoutingProtocol::NotifyRemoveAddress (uint32_t interface, Ipv4InterfaceAddress address)
     {
       NS_LOG_FUNCTION (this<<interface);
     }
 
     void
-    IGMPXRoutingProtocol::SetIpv4 (Ptr<Ipv4> ipv4)
+    RoutingProtocol::SetIpv4 (Ptr<Ipv4> ipv4)
     {
       NS_ASSERT (ipv4 != 0);
       NS_ASSERT (m_ipv4 == 0);
@@ -280,15 +281,15 @@ namespace ns3
       m_RoutingTable->SetIpv4 (ipv4);
     }
 
-    inline Ipv4Address
-    IGMPXRoutingProtocol::GetLocalAddress (int32_t interface)
+    Ipv4Address
+    RoutingProtocol::GetLocalAddress (int32_t interface)
     {
       NS_ASSERT ((uint32_t)interface<m_ipv4->GetNInterfaces () && interface >= 0);
       return m_ipv4->GetAddress ( (uint32_t) interface, 0).GetLocal ();
     }
 
     void
-    IGMPXRoutingProtocol::DoDispose ()
+    RoutingProtocol::DoDispose ()
     {
       for (std::map<SourceGroupPair, IgmpState>::iterator iter = m_igmpGroups.begin(); iter != m_igmpGroups.end();
           iter++)
@@ -318,7 +319,7 @@ namespace ns3
     }
 
     void
-    IGMPXRoutingProtocol::PrintRoutingTable (Ptr<OutputStreamWrapper> stream) const
+    RoutingProtocol::PrintRoutingTable (Ptr<OutputStreamWrapper> stream) const
     {
 //      std::ostream* os = stream->GetStream ();
 //      *os << "Group\t Source\t NextHop\t Interface\n";
@@ -327,7 +328,7 @@ namespace ns3
     }
 
     void
-    IGMPXRoutingProtocol::DoStart ()
+    RoutingProtocol::DoStart ()
     {
       #ifdef IGMPTEST
         return;
@@ -362,7 +363,7 @@ namespace ns3
     }
 
     void
-    IGMPXRoutingProtocol::SendPacketIGMPXBroadcast (Ptr<Packet> packet, const IGMPXHeader &message, int32_t interface)
+    RoutingProtocol::SendPacketIGMPXBroadcast (Ptr<Packet> packet, const IGMPXHeader &message, int32_t interface)
     {
       NS_LOG_FUNCTION (this);
       if (m_stopTx)
@@ -386,7 +387,7 @@ namespace ns3
     }
 
     void
-    IGMPXRoutingProtocol::SendPacketIGMPXUnicast (Ptr<Packet> packet, const IGMPXHeader &message, int32_t interface,
+    RoutingProtocol::SendPacketIGMPXUnicast (Ptr<Packet> packet, const IGMPXHeader &message, int32_t interface,
                                                   Ipv4Address destination)
     {
       NS_LOG_FUNCTION (this);
@@ -410,7 +411,7 @@ namespace ns3
     }
 
     void
-    IGMPXRoutingProtocol::IgmpReportTimerExpire (SourceGroupPair sgp, uint32_t interface)
+    RoutingProtocol::IgmpReportTimerExpire (SourceGroupPair sgp, uint32_t interface)
     {
       NS_LOG_FUNCTION (this << sgp << interface << GetLocalAddress (interface));
       NS_ASSERT (m_role == CLIENT);
@@ -421,7 +422,7 @@ namespace ns3
     }
 
     void
-    IGMPXRoutingProtocol::SendIgmpReport (SourceGroupPair sgp, uint32_t interface)
+    RoutingProtocol::SendIgmpReport (SourceGroupPair sgp, uint32_t interface)
     {
       NS_LOG_FUNCTION (this << sgp << GetLocalAddress (interface) << interface);
       NS_ASSERT (m_role == CLIENT);
@@ -440,7 +441,7 @@ namespace ns3
                    << " Renew " << (Simulator::Now()+m_igmpGroups.find (sgp)->second.igmpMessage.find (interface)->second.GetDelay()).GetSeconds()
                    << " Running "<< m_igmpGroups.find (sgp)->second.igmpEvent.find(interface)->second.IsRunning());
       NS_ASSERT (!m_igmpGroups.find (sgp)->second.igmpEvent.find(interface)->second.IsRunning());
-      m_igmpGroups.find (sgp)->second.igmpEvent.find(interface)->second = Simulator::Schedule (delay, &IGMPXRoutingProtocol::SendPacketIGMPXBroadcast, this, packet, report, interface);
+      m_igmpGroups.find (sgp)->second.igmpEvent.find(interface)->second = Simulator::Schedule (delay, &RoutingProtocol::SendPacketIGMPXBroadcast, this, packet, report, interface);
 #ifndef IGMPTEST
       if(destination != Ipv4Address::GetAny()
             {
@@ -450,7 +451,7 @@ namespace ns3
     }
 
     void
-    IGMPXRoutingProtocol::SendIgmpAccept (SourceGroupPair sgp, uint32_t interface, Ipv4Address clientIP)
+    RoutingProtocol::SendIgmpAccept (SourceGroupPair sgp, uint32_t interface, Ipv4Address clientIP)
     {
       NS_LOG_FUNCTION (this << sgp << interface << clientIP);
       NS_ASSERT (m_role == ROUTER);
@@ -466,11 +467,11 @@ namespace ns3
       Time delay = TransmissionDelay ();
       NS_LOG_INFO ("Router " << GetLocalAddress (interface) << " accepts clients for " << sgp << " on interface "<< interface << " delay " << delay.GetSeconds());
       if (m_igmpGroups.find (sgp) != m_igmpGroups.end())
-        m_igmpGroups.find (sgp)->second.igmpEvent.find(interface)->second  = Simulator::Schedule (delay, &IGMPXRoutingProtocol::SendPacketIGMPXBroadcast, this, packet, accept, interface);
+        m_igmpGroups.find (sgp)->second.igmpEvent.find(interface)->second  = Simulator::Schedule (delay, &RoutingProtocol::SendPacketIGMPXBroadcast, this, packet, accept, interface);
     }
 
     void
-    IGMPXRoutingProtocol::RecvIgmpReport (IGMPXHeader::IgmpReportMessage &report, Ipv4Address sender,
+    RoutingProtocol::RecvIgmpReport (IGMPXHeader::IgmpReportMessage &report, Ipv4Address sender,
                                           Ipv4Address receiver, uint32_t interface, double snr)
     {
       switch (m_role)
@@ -553,7 +554,7 @@ namespace ns3
                     NS_LOG_DEBUG ("Adding Interface " << interface << " to the map for "<<sender);
                     NS_LOG_DEBUG ("Set the timer to remove clients");
                     m_igmpGroups.find (sgp)->second.igmpRemove.insert (std::pair<uint32_t, Timer> (interface, Timer (Timer::CANCEL_ON_DESTROY)));
-                    m_igmpGroups.find (sgp)->second.igmpRemove.find (interface)->second.SetFunction (&IGMPXRoutingProtocol::RemoveClient, this);
+                    m_igmpGroups.find (sgp)->second.igmpRemove.find (interface)->second.SetFunction (&RoutingProtocol::RemoveClient, this);
                     m_igmpGroups.find (sgp)->second.igmpRemove.find (interface)->second.SetDelay (Seconds (IGMP_TIMEOUT));
                     m_igmpGroups.find (sgp)->second.igmpRemove.find (interface)->second.SetArguments (sgp, interface);
 
@@ -586,7 +587,7 @@ namespace ns3
     }
 
     void
-    IGMPXRoutingProtocol::RecvIgmpAccept (IGMPXHeader::IgmpAcceptMessage &accept, Ipv4Address sender,
+    RoutingProtocol::RecvIgmpAccept (IGMPXHeader::IgmpAcceptMessage &accept, Ipv4Address sender,
                                           Ipv4Address receiver, uint32_t interface, double snr)
     {
       switch (m_role)
@@ -678,7 +679,7 @@ namespace ns3
     }
 
     void
-    IGMPXRoutingProtocol::RemoveRouter (SourceGroupPair sgp, uint32_t interface)
+    RoutingProtocol::RemoveRouter (SourceGroupPair sgp, uint32_t interface)
     {
       NS_LOG_FUNCTION (this << sgp << interface);
       NS_ASSERT(m_role == CLIENT);
@@ -687,11 +688,11 @@ namespace ns3
       m_igmpGroups.find(sgp)->second.sourceGroup.nextMulticastAddr = Ipv4Address::GetAny();
       m_igmpGroups.find(sgp)->second.sourceGroup.snrNext = 0;
       m_igmpGroups.find(sgp)->second.igmpEvent.find(interface)->second.Cancel();
-      Simulator::ScheduleNow(&IGMPXRoutingProtocol::SendIgmpReport, this, sgp, interface);
+      Simulator::ScheduleNow(&RoutingProtocol::SendIgmpReport, this, sgp, interface);
     }
 
     void
-    IGMPXRoutingProtocol::RemoveClient (SourceGroupPair sgp, uint32_t interface)
+    RoutingProtocol::RemoveClient (SourceGroupPair sgp, uint32_t interface)
     {
       NS_LOG_FUNCTION (this << sgp << interface);
       NS_ASSERT (m_role == ROUTER);
@@ -708,7 +709,7 @@ namespace ns3
     }
 
     void
-    IGMPXRoutingProtocol::RecvIGMPX (Ptr<Socket> socket)
+    RoutingProtocol::RecvIGMPX (Ptr<Socket> socket)
     {
       NS_LOG_FUNCTION (this);
       Ptr<Packet> receivedPacket;
@@ -757,7 +758,7 @@ namespace ns3
     }
 
     void
-    IGMPXRoutingProtocol::Tokenize (const std::string& str, std::vector<std::string>& tokens,
+    RoutingProtocol::Tokenize (const std::string& str, std::vector<std::string>& tokens,
                                     const std::string& delimiters)
     {
       std::string::size_type lastPos = str.find_first_not_of (delimiters, 0);
@@ -775,7 +776,7 @@ namespace ns3
     }
 
     Ipv4Header
-    IGMPXRoutingProtocol::BuildHeader (Ipv4Address source, Ipv4Address destination, uint8_t protocol,
+    RoutingProtocol::BuildHeader (Ipv4Address source, Ipv4Address destination, uint8_t protocol,
                                        uint16_t payloadSize, uint8_t ttl, bool mayFragment)
     {
       Ipv4Header ipv4header;
@@ -804,13 +805,13 @@ namespace ns3
     }
 
     Time
-    IGMPXRoutingProtocol::TransmissionDelay ()
+    RoutingProtocol::TransmissionDelay ()
     {
       return TransmissionDelay (0, 1000, Time::MS);
     }
 
     Time
-    IGMPXRoutingProtocol::TransmissionDelay (double l, double u, enum Time::Unit unit)
+    RoutingProtocol::TransmissionDelay (double l, double u, enum Time::Unit unit)
     {
       double delay = UniformVariable ().GetValue (l, u);
       Time delayms = Time::FromDouble (delay, unit);
