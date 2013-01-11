@@ -107,7 +107,7 @@ namespace ns3
     {
       NS_ASSERT (m_role == CLIENT);
       m_startTime = TransmissionDelay (0, IGMP_TIME*1000, Time::MS);
-      NS_LOG_DEBUG ("Register interface  " << interface << " for (" << source << "," << group << ") Delay "<<m_startTime.GetSeconds());
+      NS_LOG_DEBUG ("Client registers interface  " << interface << " for (" << source << "," << group << ") Delay "<<m_startTime.GetSeconds());
       SourceGroupPair sgp (source, group);
       if (m_igmpGroups.find (sgp) == m_igmpGroups.end ())//check whether the SourceGroup pair has been registered
         {
@@ -450,7 +450,10 @@ namespace ns3
       NS_ASSERT (m_role == ROUTER);
       if (m_igmpGroups.find (sgp) != m_igmpGroups.end() &&
           m_igmpGroups.find (sgp)->second.igmpEvent.find(interface)->second.IsRunning())
-        return;
+        {
+          NS_LOG_INFO ("Router " << GetLocalAddress (interface) << " skip...it's sending an accept shortly ");
+          return;
+        }
       Ptr<Packet> packet = Create<Packet> ();
       IGMPXHeader accept (IGMPX_ACCEPT);
       IGMPXHeader::IgmpAcceptMessage &igmpAccept = accept.GetIgmpAcceptMessage ();
@@ -461,6 +464,8 @@ namespace ns3
       NS_LOG_INFO ("Router " << GetLocalAddress (interface) << " accepts clients for " << sgp << " on interface "<< interface << " delay " << delay.GetSeconds());
       if (m_igmpGroups.find (sgp) != m_igmpGroups.end())
         m_igmpGroups.find (sgp)->second.igmpEvent.find(interface)->second  = Simulator::Schedule (delay, &RoutingProtocol::SendPacketIGMPXBroadcast, this, packet, accept, interface);
+      else if (clientIP == Ipv4Address::GetAny())
+        Simulator::Schedule (delay, &RoutingProtocol::SendPacketIGMPXBroadcast, this, packet, accept, interface);
     }
 
     void

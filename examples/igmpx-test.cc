@@ -132,6 +132,8 @@ Experiment::Run (const uint32_t sizeRouter, const uint32_t sizeClient, const Wif
                  const YansWifiChannelHelper &wifiChannel, const double range, const double totalTime, const uint32_t mobility)
 {
   NS_LOG_INFO ("Create nodes Router "<<sizeRouter<< " Clients "<<sizeClient<<" Source 1 ");
+  NodeContainer fake;
+  fake.Create(1);
 
   NodeContainer routers;
   routers.Create(sizeRouter);
@@ -170,8 +172,8 @@ Experiment::Run (const uint32_t sizeRouter, const uint32_t sizeClient, const Wif
 
   NS_LOG_INFO ("Assign IP Addresses.");
   Ipv4AddressHelper ipv4;
-  Ipv4Address base = Ipv4Address("10.0.0.0");
-  Ipv4Mask mask = Ipv4Mask("255.0.0.0");
+  Ipv4Address base = Ipv4Address("10.1.0.0");
+  Ipv4Mask mask = Ipv4Mask("255.255.0.0");
   ipv4.SetBase(base, mask);
   Ipv4InterfaceContainer ipRouter = ipv4.Assign(routersNetDev);
   Ipv4InterfaceContainer ipClient = ipv4.Assign(clientsNetDev);
@@ -319,12 +321,12 @@ main (int argc, char *argv[])
   LogComponentEnable("IgmpxTest", LogLevel(LOG_LEVEL_ALL | LOG_PREFIX_TIME | LOG_PREFIX_NODE | LOG_PREFIX_FUNC));
   LogComponentEnable("IgmpxRoutingProtocol",
       LogLevel(LOG_LEVEL_INFO | LOG_LEVEL_DEBUG | LOG_PREFIX_TIME | LOG_PREFIX_NODE | LOG_PREFIX_FUNC));
-  LogComponentEnable("YansWifiPhy", LogLevel(LOG_LEVEL_ALL | LOG_PREFIX_TIME | LOG_PREFIX_NODE | LOG_PREFIX_FUNC));
-  LogComponentEnable("InterferenceHelper",
-      LogLevel(LOG_LEVEL_ALL | LOG_PREFIX_TIME | LOG_PREFIX_NODE | LOG_PREFIX_FUNC));
-  LogComponentEnable("PropagationLossModel",
-      LogLevel(LOG_LEVEL_ALL | LOG_PREFIX_TIME | LOG_PREFIX_NODE | LOG_PREFIX_FUNC));
-  LogComponentEnable("YansWifiChannel", LogLevel(LOG_LEVEL_ALL | LOG_PREFIX_TIME | LOG_PREFIX_NODE | LOG_PREFIX_FUNC));
+//  LogComponentEnable("YansWifiPhy", LogLevel(LOG_LEVEL_ALL | LOG_PREFIX_TIME | LOG_PREFIX_NODE | LOG_PREFIX_FUNC));
+//  LogComponentEnable("InterferenceHelper",
+//      LogLevel(LOG_LEVEL_ALL | LOG_PREFIX_TIME | LOG_PREFIX_NODE | LOG_PREFIX_FUNC));
+//  LogComponentEnable("PropagationLossModel",
+//      LogLevel(LOG_LEVEL_ALL | LOG_PREFIX_TIME | LOG_PREFIX_NODE | LOG_PREFIX_FUNC));
+//  LogComponentEnable("YansWifiChannel", LogLevel(LOG_LEVEL_ALL | LOG_PREFIX_TIME | LOG_PREFIX_NODE | LOG_PREFIX_FUNC));
 
   // Number of router nodes
   uint32_t sizeRouter = 4;
@@ -397,8 +399,8 @@ main (int argc, char *argv[])
   gnuplot.SetExtra("set yrange [0:1.00]");
 
   Experiment experiment;
-  uint32_t clientz[] = {1, 100};
-  uint32_t clen = 2;
+  uint32_t clientz[] = {4, 100};
+  uint32_t clen = 1;
   for (uint32_t m = 0 ; m<=1 ; m++)
   {
       for (uint32_t c = 0; c < clen; c++)
