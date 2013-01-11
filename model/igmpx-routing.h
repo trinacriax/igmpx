@@ -200,10 +200,11 @@ namespace ns3
         Ptr<Ipv4StaticRouting> m_RoutingTable;
         Time m_startTime; ///< Node start time.
         PeerRole m_role; ///< Node role.
-        Ptr<pimdm::MulticastRoutingProtocol> pimdm;
-        Ptr<VideoPushApplication> video;
+//        Ptr<Ipv4RoutingProtocol> m_multicastProtocol;
         TracedCallback<Ptr<const Packet> > m_rxControlPacketTrace;
         TracedCallback<Ptr<const Packet> > m_txControlPacketTrace;
+        Callback<void, Ipv4Address, Ipv4Address, uint32_t > m_registration;
+        Callback<void, Ipv4Address, Ipv4Address, uint32_t > m_unregistration;
 
       protected:
         virtual void
@@ -291,6 +292,22 @@ namespace ns3
          */
         void
         UnregisterInterface (Ipv4Address source, Ipv4Address group, uint32_t interface);
+
+        /**
+         *
+         * @param callaback Callback to invoke whenever a source-group-interface has clients.
+         *
+         * Invoke a given callback whenever a the router has clients for a source-group-interface tuple.
+         */
+        void RegisterCallback (Callback<void, Ipv4Address, Ipv4Address, uint32_t > callback);
+
+        /**
+         *
+         * @param callaback Callback to invoke whenever a source-group-interface has NO clients.
+         *
+         * Invoke a given callback whenever a the router has NO clients for a source-group-interface tuple.
+         */
+        void UnregisterCallback (Callback<void, Ipv4Address, Ipv4Address, uint32_t > callback);
 
       private:
         void
