@@ -54,7 +54,7 @@ namespace ns3
 {
   namespace igmpx
   {
-    NS_LOG_COMPONENT_DEFINE ("RoutingProtocol");
+    NS_LOG_COMPONENT_DEFINE ("IgmpxRoutingProtocol");
 
     NS_OBJECT_ENSURE_REGISTERED (RoutingProtocol);
 

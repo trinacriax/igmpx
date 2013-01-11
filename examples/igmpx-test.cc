@@ -114,7 +114,7 @@ int
 main (int argc, char *argv[])
 {
   LogComponentEnable("IgmpxTest", LogLevel(LOG_LEVEL_ALL| LOG_PREFIX_TIME | LOG_PREFIX_NODE | LOG_PREFIX_FUNC));
-  LogComponentEnable("IGMPXRoutingProtocol",
+  LogComponentEnable("IgmpxRoutingProtocol",
       LogLevel(LOG_LEVEL_INFO | LOG_LEVEL_DEBUG | LOG_PREFIX_TIME | LOG_PREFIX_NODE | LOG_PREFIX_FUNC));
 //  LogComponentEnable("AodvRoutingProtocol",
 //      LogLevel(LOG_LEVEL_ALL | LOG_PREFIX_TIME | LOG_PREFIX_NODE | LOG_PREFIX_FUNC));
@@ -328,7 +328,7 @@ main (int argc, char *argv[])
   for (uint32_t n = 0; n < routers.GetN(); n++)
     {
       std::stringstream command;
-      command << "NodeList/" << routers.Get(n)->GetId() << "/$ns3::igmpx::IGMPXRoutingProtocol/PeerRole";
+      command << "NodeList/" << routers.Get(n)->GetId() << "/$ns3::igmpx::RoutingProtocol/PeerRole";
       Config::Set(command.str(), EnumValue(igmpx::ROUTER));
     }
   // CLIENTS
@@ -337,15 +337,15 @@ main (int argc, char *argv[])
   for (uint32_t n = 0; n < clients.GetN(); n++)
     { //Clients are RN nodes
       std::stringstream command;
-      command << "/NodeList/" << clients.Get(n)->GetId() << "/$ns3::igmpx::IGMPXRoutingProtocol/PeerRole";
+      command << "/NodeList/" << clients.Get(n)->GetId() << "/$ns3::igmpx::RoutingProtocol/PeerRole";
       Config::Set(command.str(), EnumValue(igmpx::CLIENT));
       command.str("");
-      command << "/NodeList/" << clients.Get(n)->GetId() << "/$ns3::igmpx::IGMPXRoutingProtocol/RegisterAsMember";
+      command << "/NodeList/" << clients.Get(n)->GetId() << "/$ns3::igmpx::RoutingProtocol/RegisterAsMember";
       Config::Set(command.str(), StringValue(ss.str()));
     }
 
-  Config::Connect("/NodeList/*/$ns3::igmpx::IGMPXRoutingProtocol/IgmpxTxControl", MakeCallback(&GenericPacketTrace));
-//  Config::Connect("/NodeList/*/$ns3::igmpx::IGMPXRoutingProtocol/IgmpxRxControl", MakeCallback(&GenericPacketTrace));
+  Config::Connect("/NodeList/*/$ns3::igmpx::RoutingProtocol/IgmpxTxControl", MakeCallback(&GenericPacketTrace));
+//  Config::Connect("/NodeList/*/$ns3::igmpx::RoutingProtocol/IgmpxRxControl", MakeCallback(&GenericPacketTrace));
 
   NS_LOG_INFO("Installing Position and Mobility.");
   MobilityHelper mobilityR;
