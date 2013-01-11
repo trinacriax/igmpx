@@ -32,7 +32,7 @@ namespace ns3
 
   IgmpxHelper::IgmpxHelper ()
   {
-    m_agentFactory.SetTypeId("ns3::igmpx::IGMPXRoutingProtocol");
+    m_agentFactory.SetTypeId("ns3::igmpx::RoutingProtocol");
   }
 
   IgmpxHelper::IgmpxHelper (const IgmpxHelper &o) :
@@ -68,7 +68,7 @@ namespace ns3
   Ptr<Ipv4RoutingProtocol>
   IgmpxHelper::Create (Ptr<Node> node) const
   {
-    Ptr<igmpx::IGMPXRoutingProtocol> agent = m_agentFactory.Create<igmpx::IGMPXRoutingProtocol>();
+    Ptr<igmpx::RoutingProtocol> agent = m_agentFactory.Create<igmpx::RoutingProtocol>();
 
     std::map<Ptr<Node>, std::set<uint32_t> >::const_iterator it = m_interfaceExclusions.find(node);
 
