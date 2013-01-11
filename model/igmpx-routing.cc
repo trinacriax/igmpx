@@ -62,8 +62,7 @@ namespace ns3
         m_mainInterface (0), m_mainAddress (Ipv4Address::GetAny ()),
         m_stopTx (false), m_ipv4 (0), m_identification (0),
         m_routingProtocol (0), m_RoutingTable (0),
-        m_startTime (0), m_role (CLIENT),
-        pimdm (0), video (0)
+        m_startTime (0), m_role (CLIENT)
     {
       m_RoutingTable = Create<Ipv4StaticRouting> ();
       m_socketAddresses.clear ();
@@ -184,6 +183,19 @@ namespace ns3
         return; //skip initialization
       UnregisterInterface (source, group, interface);
     }
+
+     void
+     RoutingProtocol::RegisterCallback (Callback<void, Ipv4Address, Ipv4Address, uint32_t > callback)
+     {
+       m_registration = callback;
+     }
+
+
+     void
+     RoutingProtocol::UnregisterCallback (Callback<void, Ipv4Address, Ipv4Address, uint32_t > callback)
+     {
+       m_unregistration = callback;
+     }
 
     Ptr<Ipv4Route>
     RoutingProtocol::RouteOutput (Ptr<Packet> p, const Ipv4Header &header, Ptr<NetDevice> oif,
@@ -333,33 +345,20 @@ namespace ns3
       #ifdef IGMPTEST
         return;
       #endif
-      if (m_role == ROUTER && pimdm == NULL)
-        {
-          Ptr<Ipv4RoutingProtocol> rp_Gw = (m_ipv4->GetRoutingProtocol ());
-          Ptr<Ipv4ListRouting> lrp_Gw = DynamicCast<Ipv4ListRouting> (rp_Gw);
-          for (uint32_t i = 0; i < lrp_Gw->GetNRoutingProtocols (); i++)
-            {
-              int16_t priority;
-              Ptr<Ipv4RoutingProtocol> temp = lrp_Gw->GetRoutingProtocol (i, priority);
-              if (DynamicCast<pimdm::MulticastRoutingProtocol> (temp))
-                {
-                  pimdm = DynamicCast<pimdm::MulticastRoutingProtocol> (temp);
-                }
-            }
-        }
-      if (m_role == CLIENT && video == NULL)
-        {
-          Ptr<Node> node = GetObject<Node> ();
-          uint32_t apps = node->GetNApplications ();
-          for (uint32_t i = 0; i < apps; i++)
-            {
-              Ptr<Application> temp = node->GetApplication (i);
-              if (DynamicCast<VideoPushApplication> (temp))
-                {
-                  video = DynamicCast<VideoPushApplication> (temp);
-                }
-            }
-        }
+//      if (m_role == ROUTER && m_multicastProtocol == NULL)
+//        {
+//          Ptr<Ipv4RoutingProtocol> rp_Gw = (m_ipv4->GetRoutingProtocol ());
+//          Ptr<Ipv4ListRouting> lrp_Gw = DynamicCast<Ipv4ListRouting> (rp_Gw);
+//          for (uint32_t i = 0; i < lrp_Gw->GetNRoutingProtocols (); i++)
+//            {
+//              int16_t priority;
+//              Ptr<Ipv4RoutingProtocol> temp = lrp_Gw->GetRoutingProtocol (i, priority);
+//              if (DynamicCast<pimdm::MulticastRoutingProtocol> (temp))
+//                {
+//                  m_multicastProtocol = DynamicCast<pimdm::MulticastRoutingProtocol> (temp);
+//                }
+//            }
+//        }
     }
 
     void
@@ -442,12 +441,6 @@ namespace ns3
                    << " Running "<< m_igmpGroups.find (sgp)->second.igmpEvent.find(interface)->second.IsRunning());
       NS_ASSERT (!m_igmpGroups.find (sgp)->second.igmpEvent.find(interface)->second.IsRunning());
       m_igmpGroups.find (sgp)->second.igmpEvent.find(interface)->second = Simulator::Schedule (delay, &RoutingProtocol::SendPacketIGMPXBroadcast, this, packet, report, interface);
-#ifndef IGMPTEST
-      if(destination != Ipv4Address::GetAny()
-            {
-              video->SetGateway (destination);
-            }
-#endif
     }
 
     void
@@ -560,10 +553,8 @@ namespace ns3
 
                     m_igmpGroups.find (sgp)->second.igmpEvent.insert (std::pair<uint32_t, EventId> (interface, EventId () ));
 
-                    #ifndef IGMPTEST // TEST FILES SHOULD NOT RUN THIS COMMAND
-                    //TODO: improve the registration.
-                    pimdm->registerMember (source, group, interface);
-                    #endif
+                    if (!m_registration.IsNull())
+                      m_registration (source, group, interface);
                     NS_LOG_INFO ("Router " << GetLocalAddress (interface) << " register client " << sender <<" ("<<snr<< ") as member of " << sgp);
                   }
                 //Note that the routers use the Timer to clean the clients list.
@@ -702,9 +693,8 @@ namespace ns3
       m_igmpGroups.find(sgp)->second.igmpRemove.find(interface)->second.Cancel();
       m_igmpGroups.erase(sgp);
       NS_LOG_INFO ("Node " << GetLocalAddress (interface) << " removes group " << sgp);
-#ifndef IGMPTEST
-      pimdm->unregisterMember (sgp.sourceMulticastAddr, sgp.groupMulticastAddr, interface);
-#endif
+      if (!m_unregistration.IsNull())
+        m_unregistration (sgp.sourceMulticastAddr, sgp.groupMulticastAddr, interface);
 
     }
 
