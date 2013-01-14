@@ -251,14 +251,14 @@ Experiment::Run (const uint32_t sizeRouter, const uint32_t sizeClient, const Wif
     {
       uint32_t groupPoints = 4;
       Ptr<ListPositionAllocator> positionAllocG[sizeClient];
-      for (int g = 0; g < sizeClient; g++)
+      for (uint32_t g = 0; g < sizeClient; g++)
         {
           std::stringstream poi;
           positionAllocG[g] = CreateObject<ListPositionAllocator>();
           poi << "Group[" << g << "] POI: ";
-          for (int k = 0; k < groupPoints; k++)
+          for (uint32_t k = 0; k < groupPoints; k++)
             {
-              int d = (g + (k + 1)) % sizeRouter;
+              uint32_t d = (g + (k + 1)) % sizeRouter;
               positionAllocG[g]->Add(Vector(rPos[d].x, rPos[d].y + 10, rPos[d].z));
               poi << "(" << rPos[d].x << "," << rPos[d].y << "," << rPos[d].z << ") ";
             }
@@ -278,7 +278,7 @@ Experiment::Run (const uint32_t sizeRouter, const uint32_t sizeClient, const Wif
       Ptr<ConstantRandomVariable> speed = CreateObject<ConstantRandomVariable>();
       speed->SetAttribute("Constant", DoubleValue(vspeed));
 
-      for (int g = 0; g < sizeClient; g++)
+      for (uint32_t  g = 0; g < sizeClient; g++)
         {
           Ptr<ListPositionAllocator> positionAllocC = CreateObject<ListPositionAllocator>();
           positionAllocC->Add(Vector(rPos[g % sizeRouter].x, rPos[g % sizeRouter].y + 10, rPos[g % sizeRouter].z));
@@ -399,8 +399,8 @@ main (int argc, char *argv[])
   gnuplot.SetExtra("set yrange [0:1.00]");
 
   Experiment experiment;
-  uint32_t clientz[] = {4, 100};
-  uint32_t clen = 1;
+  uint32_t clientz[] = {1, 4, 50, 100};
+  uint32_t clen = 4;
   for (uint32_t m = 0 ; m<=1 ; m++)
   {
       for (uint32_t c = 0; c < clen; c++)
