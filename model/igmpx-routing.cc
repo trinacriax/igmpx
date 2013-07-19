@@ -449,25 +449,6 @@ namespace ns3
 #endif
     }
 
-//    void
-//    IGMPXRoutingProtocol::IgmpAcceptTimerExpire (SourceGroupPair sgp, uint32_t interface)
-//    {
-//      NS_LOG_FUNCTION (this << sgp << interface << GetLocalAddress (interface));
-//      NS_ASSERT (m_role == ROUTER);
-//      if (m_igmpGroups.find (sgp) != m_igmpGroups.end () &&
-//          m_igmpGroups.find (sgp)->second.igmpMessage.find(interface) != m_igmpGroups.find (sgp)->second.igmpMessage.end ())
-//        {
-//        Ipv4Address destination = Ipv4Address::GetAny();
-//        NS_LOG_INFO ("Node " << GetLocalAddress (interface) << " sends accepts for "<< sgp << " interface "<< interface);
-//        SendIgmpAccept (sgp, interface, destination);
-//        m_igmpGroups.find (sgp)->second.igmpMessage.find (interface)->second.Schedule ();
-//        }
-//      else
-//        {
-//          NS_LOG_INFO ("No clients to accept");
-//        }
-//    }
-
     void
     IGMPXRoutingProtocol::SendIgmpAccept (SourceGroupPair sgp, uint32_t interface, Ipv4Address clientIP)
     {
@@ -577,13 +558,6 @@ namespace ns3
                     m_igmpGroups.find (sgp)->second.igmpRemove.find (interface)->second.SetArguments (sgp, interface);
 
                     m_igmpGroups.find (sgp)->second.igmpEvent.insert (std::pair<uint32_t, EventId> (interface, EventId () ));
-
-//                    NS_LOG_DEBUG ("Set the timer to renew accept");
-//                    m_igmpGroups.find (sgp)->second.igmpMessage.insert (std::pair<uint32_t, Timer> (interface, Timer (Timer::CANCEL_ON_DESTROY)));
-//                    m_igmpGroups.find (sgp)->second.igmpMessage.find (interface)->second.SetFunction (&IGMPXRoutingProtocol::IgmpAcceptTimerExpire, this);
-//                    m_igmpGroups.find (sgp)->second.igmpMessage.find (interface)->second.SetArguments (sgp, interface);
-//                    m_igmpGroups.find (sgp)->second.igmpMessage.find (interface)->second.SetDelay (Seconds (1.5*IGMP_TIME));
-//                    m_igmpGroups.find (sgp)->second.igmpMessage.find (interface)->second.Schedule (); //COMMENT TO TEST RemoveRouter
 
                     #ifndef IGMPTEST // TEST FILES SHOULD NOT RUN THIS COMMAND
                     //TODO: improve the registration.
@@ -721,24 +695,16 @@ namespace ns3
     {
       NS_LOG_FUNCTION (this << sgp << interface);
       NS_ASSERT (m_role == ROUTER);
-      NS_ASSERT (m_igmpGroups.find (sgp) != m_igmpGroups.end ());
-      NS_ASSERT (!m_igmpGroups.find (sgp)->second.igmpRemove.find (interface)->second.IsRunning());
+      NS_ASSERT(m_igmpGroups.find (sgp) != m_igmpGroups.end ());
+      NS_ASSERT(!m_igmpGroups.find (sgp)->second.igmpRemove.find (interface)->second.IsRunning());
       m_igmpGroups.find(sgp)->second.igmpEvent.find(interface)->second.Cancel();
       m_igmpGroups.find(sgp)->second.igmpRemove.find(interface)->second.Cancel();
-//      NS_ASSERT (m_igmpGroups.find (sgp)->second.igmpMessage.find (interface) != m_igmpGroups.find (sgp)->second.igmpMessage.end ());
-//      int size = m_igmpGroups.find (sgp)->second.igmpMessage.size ();
-//      m_igmpGroups.find (sgp)->second.igmpRemove.find (interface)->second.Cancel ();
-//      m_igmpGroups.find (sgp)->second.igmpMessage.find (interface)->second.Cancel ();
-//      m_igmpGroups.find (sgp)->second.igmpMessage.erase (interface);
-//      int size2 = m_igmpGroups.find (sgp)->second.igmpMessage.size ();
-//      if (m_igmpGroups.find (sgp)->second.igmpMessage.empty ())
-//        {
-          m_igmpGroups.erase (sgp);
-          NS_LOG_INFO ("Node " << GetLocalAddress (interface) << " removes group " << sgp);
-          #ifndef IGMPTEST
-            pimdm->unregisterMember (sgp.sourceMulticastAddr, sgp.groupMulticastAddr, interface);
-          #endif
-//        }
+      m_igmpGroups.erase(sgp);
+      NS_LOG_INFO ("Node " << GetLocalAddress (interface) << " removes group " << sgp);
+#ifndef IGMPTEST
+      pimdm->unregisterMember (sgp.sourceMulticastAddr, sgp.groupMulticastAddr, interface);
+#endif
+
     }
 
     void
@@ -851,5 +817,5 @@ namespace ns3
       return delayms;
     }
 
-  }
+  } // namespace  igmpx
 } // namespace ns3
