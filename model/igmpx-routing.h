@@ -60,7 +60,7 @@ namespace ns3
   namespace igmpx
   {
     const uint32_t IGMP_TIME = 10;
-    const double IGMP_TIMEOUT = 2 * IGMP_TIME;
+    const double IGMP_TIMEOUT = 3 * IGMP_TIME;
     const uint32_t IGMP_SNR_THRESHOLD = 1000;
     const double IGMP_SNR_RATIO = 0.70;
 
@@ -73,18 +73,20 @@ namespace ns3
     {
         SourceGroupPair () :
             sourceMulticastAddr(Ipv4Address::GetAny()), groupMulticastAddr(Ipv4Address::GetAny()),
-            nextMulticastAddr(Ipv4Address::GetAny()), snrNext(0.0), m_renew(Timer::CANCEL_ON_DESTROY)
+            nextMulticastAddr(Ipv4Address::GetAny()), snrNext(0.0)
         {
         }
         SourceGroupPair (Ipv4Address s, Ipv4Address g) :
-            sourceMulticastAddr(s), groupMulticastAddr(g), nextMulticastAddr(Ipv4Address::GetAny()), snrNext(0.0),
-            m_renew(Timer::CANCEL_ON_DESTROY)
+            sourceMulticastAddr(s), groupMulticastAddr(g), nextMulticastAddr(Ipv4Address::GetAny()), snrNext(0.0)
         {
+          NS_ASSERT (g.IsMulticast());
+          NS_ASSERT (!s.IsMulticast());
         }
         SourceGroupPair (Ipv4Address s, Ipv4Address g, Ipv4Address n) :
-            sourceMulticastAddr(s), groupMulticastAddr(g), nextMulticastAddr(n), snrNext(0.0),
-            m_renew(Timer::CANCEL_ON_DESTROY)
+            sourceMulticastAddr(s), groupMulticastAddr(g), nextMulticastAddr(n), snrNext(0.0)
         {
+          NS_ASSERT (g.IsMulticast());
+          NS_ASSERT (!s.IsMulticast());
         }
         /// Multicast Source address.
         Ipv4Address sourceMulticastAddr;
@@ -94,8 +96,6 @@ namespace ns3
         Ipv4Address nextMulticastAddr;
         /// Router's SNR value.
         double snrNext;
-        /// Timer to renew subscription to the associated router.
-        Timer m_renew;
     };
 
     static inline bool
@@ -124,12 +124,14 @@ namespace ns3
         SourceGroupPair sourceGroup; /// SourceGroup pair.
         std::map<uint32_t, Timer> igmpMessage; /// <Interface, Timer > map used by clients send the report messages.
         std::map<uint32_t, Timer> igmpRemove; /// <Interface, Timer > map used by routers to clean clients.
+        std::map<uint32_t, EventId> igmpEvent; /// <Interface, EventId > map used to track messages.
 
         IgmpState (SourceGroupPair sgp) :
             sourceGroup(sgp)
         {
           igmpMessage.clear();
           igmpRemove.clear();
+          igmpEvent.clear();
         }
 
         ~IgmpState ()
@@ -197,8 +199,6 @@ namespace ns3
         /// Loopback device used to defer RREQ until packet will be fully formed
         Ptr<Ipv4StaticRouting> m_RoutingTable;
         Time m_startTime; ///< Node start time.
-        Timer m_renew; ///< Node renew report timer.
-        EventId m_regMsg;
         PeerRole m_role; ///< Node role.
         Ptr<pimdm::MulticastRoutingProtocol> pimdm;
         Ptr<VideoPushApplication> video;
@@ -415,16 +415,16 @@ namespace ns3
         void
         IgmpReportTimerExpire (SourceGroupPair sgp, uint32_t interface);
 
-        /**
-         *
-         * \param sgp Target Source-Group pair.
-         * \param interface Target interface.
-         *
-         * Send an IgmpAccept message for the specific sgp and interface.
-         *
-         */
-        void
-        IgmpAcceptTimerExpire (SourceGroupPair sgp, uint32_t interface);
+//        /**
+//         *
+//         * \param sgp Target Source-Group pair.
+//         * \param interface Target interface.
+//         *
+//         * Send an IgmpAccept message for the specific sgp and interface.
+//         *
+//         */
+//        void
+//        IgmpAcceptTimerExpire (SourceGroupPair sgp, uint32_t interface);
 
         /**
          *
@@ -441,37 +441,13 @@ namespace ns3
          *
          * \param sgp Target Source-Group pair.
          * \param interface Target interface.
-         * \param destination Target router.
-         *
-         * Send an IgmpReport for a specific sgp - interface pair in broadcast.
-         *
-         */
-        void
-        SendIgmpReportNode (SourceGroupPair sgp, uint32_t interface, Ipv4Address destination);
-
-
-        /**
-         *
-         * \param sgp Target Source-Group pair.
-         * \param interface Target interface.
-         *
-         * Send an IgmpRegister for a specific sgp - interface pair in broadcast.
-         *
-         */
-        void
-        SendIgmpRegister (SourceGroupPair sgp, uint32_t interface);
-
-        /**
-         *
-         * \param sgp Target Source-Group pair.
-         * \param interface Target interface.
          *
          * Remove all the clients associated to a specific sgp - interface pair.
          *
          */
 
         void
-        RemoveClients (SourceGroupPair sgp, uint32_t interface);
+        RemoveClient (SourceGroupPair sgp, uint32_t interface);
 
         /**
          *
